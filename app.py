@@ -8,280 +8,314 @@ Original file is located at
 """
 
 import pandas as pd
-
-data=pd.read_csv(r"adult 3.csv")
-
-data.head(10)
-
-data.tail(3)
-
-data.shape
-
-#null values
-data.isna().sum() #mean mdeian mode arbitrary
-
-print(data.workclass.value_counts())
-
-data.workclass.replace({'?':'Others'},inplace=True)
-print(data['workclass'].value_counts())
-
-print(data['occupation'].value_counts())
-
-data.occupation.replace({'?':'Others'},inplace=True)
-print(data['occupation'].value_counts())
-
-data=data[data['workclass']!='Without-pay']
-data=data[data['workclass']!='Never-worked']
-print(data['workclass'].value_counts())
-
-print(data.relationship.value_counts())
-
-print(data.gender.value_counts())
-
-data.shape
-
-#outlier detection
-import matplotlib.pyplot as plt   #visualization
-plt.boxplot(data['age'])
-plt.show()
-
-data=data[(data['age']<=75)&(data['age']>=17)]
-
-plt.boxplot(data['age'])
-plt.show()
-
-data.shape
-
-plt.boxplot(data['capital-gain'])
-plt.show()
-
-plt.boxplot(data['capital-gain'])
-plt.show()
-
-plt.boxplot(data['educational-num'])
-plt.show()
-
-data=data[(data['educational-num']<=16)&(data['educational-num']>=5)]
-
-plt.boxplot(data['educational-num'])
-plt.show()
-
-plt.boxplot(data['hours-per-week'])
-plt.show()
-
-data.shape
-
-data=data.drop(columns=['education']) #redundant features removal
-
-data
-
-from sklearn.preprocessing import LabelEncoder   #import libarary
-encoder=LabelEncoder()                       #create object
-data['workclass']=encoder.fit_transform(data['workclass']) #7 categories   0,1, 2, 3, 4, 5, 6,
-data['marital-status']=encoder.fit_transform(data['marital-status'])   #3 categories 0, 1, 2
-data['occupation']=encoder.fit_transform(data['occupation'])
-data['relationship']=encoder.fit_transform(data['relationship'])      #5 categories  0, 1, 2, 3, 4
-data['race']=encoder.fit_transform(data['race'])
-data['gender']=encoder.fit_transform(data['gender'])    #2 catogories     0, 1
-data['native-country']=encoder.fit_transform(data['native-country'])
-
-data
-
-x=data.drop(columns=['income'])
-y=data['income']
-x
-
-from sklearn.pipeline import Pipeline
+import joblib
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-import joblib
+import matplotlib.pyplot as plt
 
+# --- Data Loading and Preprocessing (Training Part) ---
+# IMPORTANT: Ensure 'adult 3.csv' is in the same directory as your notebook or provide the correct full path.
+try:
+    data = pd.read_csv("adult 3.csv")
+except FileNotFoundError:
+    print("Error: 'adult 3.csv' not found. Please ensure the file is in the correct directory.")
+    # You might want to exit or handle this more gracefully in a real application
+    # For now, we'll continue with the assumption it will be fixed.
+    exit()
+
+print("Initial Data Head:")
+print(data.head(10))
+
+print("\nData Shape:", data.shape)
+
+# Null values
+print("\nNull Values:")
+print(data.isna().sum())
+
+# Handling '?' in workclass and occupation
+print("\nWorkclass Value Counts (Before Replacement):")
+print(data.workclass.value_counts())
+data.workclass.replace({'?': 'Others'}, inplace=True)
+print("\nWorkclass Value Counts (After Replacement):")
+print(data['workclass'].value_counts())
+
+print("\nOccupation Value Counts (Before Replacement):")
+print(data['occupation'].value_counts())
+data.occupation.replace({'?': 'Others'}, inplace=True)
+print("\nOccupation Value Counts (After Replacement):")
+print(data['occupation'].value_counts())
+
+# Removing specific workclass categories
+data = data[data['workclass'] != 'Without-pay']
+data = data[data['workclass'] != 'Never-worked']
+print("\nWorkclass Value Counts (After Removal):")
+print(data['workclass'].value_counts())
+
+print("\nRelationship Value Counts:")
+print(data.relationship.value_counts())
+
+print("\nGender Value Counts:")
+print(data.gender.value_counts())
+
+print("\nData Shape after initial cleaning:", data.shape)
+
+# Outlier detection and removal for 'age'
+plt.figure(figsize=(6,4))
+plt.boxplot(data['age'])
+plt.title('Age Boxplot (Before Outlier Removal)')
+plt.show()
+
+data = data[(data['age'] <= 75) & (data['age'] >= 17)]
+
+plt.figure(figsize=(6,4))
+plt.boxplot(data['age'])
+plt.title('Age Boxplot (After Outlier Removal)')
+plt.show()
+print("\nData Shape after Age Outlier Removal:", data.shape)
+
+# Outlier detection for 'capital-gain' (no removal in original, keeping as is)
+plt.figure(figsize=(6,4))
+plt.boxplot(data['capital-gain'])
+plt.title('Capital Gain Boxplot')
+plt.show()
+
+# Outlier detection and removal for 'educational-num'
+plt.figure(figsize=(6,4))
+plt.boxplot(data['educational-num'])
+plt.title('Educational Num Boxplot (Before Outlier Removal)')
+plt.show()
+
+data = data[(data['educational-num'] <= 16) & (data['educational-num'] >= 5)]
+
+plt.figure(figsize=(6,4))
+plt.boxplot(data['educational-num'])
+plt.title('Educational Num Boxplot (After Outlier Removal)')
+plt.show()
+print("\nData Shape after Educational Num Outlier Removal:", data.shape)
+
+# Outlier detection for 'hours-per-week' (no removal in original, keeping as is)
+plt.figure(figsize=(6,4))
+plt.boxplot(data['hours-per-week'])
+plt.title('Hours Per Week Boxplot')
+plt.show()
+
+print("\nFinal Data Shape before feature engineering:", data.shape)
+
+# Redundant features removal
+data = data.drop(columns=['education']) # 'educational-num' is already present
+
+# --- Encoding Categorical Features ---
+# Use a dictionary to store a separate LabelEncoder for each categorical column
+label_encoders = {}
+categorical_cols = ['workclass', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country']
+
+for col in categorical_cols:
+    encoder = LabelEncoder()
+    data[col] = encoder.fit_transform(data[col])
+    label_encoders[col] = encoder # Store the fitted encoder for this column
+
+print("\nData after Label Encoding:")
+print(data.head())
+
+# Define features (x) and target (y)
+x = data.drop(columns=['income'])
+y = data['income']
+
+# --- Model Training ---
 X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
-# Apply scaler to training data
+# Apply StandardScaler to training data (features only)
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 models = {
-    "LogisticRegression": LogisticRegression(),
-    "RandomForest": RandomForestClassifier(),
+    "LogisticRegression": LogisticRegression(max_iter=1000), # Increased max_iter for convergence
+    "RandomForest": RandomForestClassifier(random_state=42), # Added random_state for reproducibility
     "KNN": KNeighborsClassifier(),
-    "SVM": SVC(),
-    "GradientBoosting": GradientBoostingClassifier()
+    "SVM": SVC(random_state=42), # Added random_state
+    "GradientBoosting": GradientBoostingClassifier(random_state=42) # Added random_state
 }
 
 results = {}
 
+print("\n--- Model Training and Evaluation ---")
 for name, model in models.items():
-    model.fit(X_train_scaled, y_train)
-    y_pred = model.predict(X_test_scaled)
+    model.fit(X_train_scaled, y_train) # Use scaled data for training
+    y_pred = model.predict(X_test_scaled) # Use scaled data for prediction
     acc = accuracy_score(y_test, y_pred)
     results[name] = acc
-    print(f"{name} Accuracy: {acc:.4f}")
+    print(f"\n{name} Accuracy: {acc:.4f}")
     print(classification_report(y_test, y_pred))
 
-import matplotlib.pyplot as plt
+# Model Comparison Plot
+plt.figure(figsize=(10, 6))
 plt.bar(results.keys(), results.values(), color='skyblue')
 plt.ylabel('Accuracy Score')
 plt.title('Model Comparison')
 plt.xticks(rotation=45)
 plt.grid(True)
+plt.tight_layout()
 plt.show()
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-import joblib
-
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
-
-# Define models
-models = {
-    "LogisticRegression": LogisticRegression(max_iter=1000),
-    "RandomForest": RandomForestClassifier(),
-    "KNN": KNeighborsClassifier(),
-    "SVM": SVC(),
-    "GradientBoosting": GradientBoostingClassifier()
-}
-
-results = {}
-
-# Train and evaluate
-for name, model in models.items():
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
-    acc = accuracy_score(y_test, preds)
-    results[name] = acc
-    print(f"{name}: {acc:.4f}")
-
-# Get best model
+# Get best model (from the scaled data training results)
 best_model_name = max(results, key=results.get)
 best_model = models[best_model_name]
 print(f"\n✅ Best model: {best_model_name} with accuracy {results[best_model_name]:.4f}")
 
-# Save the best model
-joblib.dump(best_model, "best_model.pkl")
-print("✅ Saved best model as best_model.pkl")
-
-# Commented out IPython magic to ensure Python compatibility.
-# %%writefile app.py
-# import streamlit as st
-# import pandas as pd
-# import joblib
-# 
-# # Load the trained model, scaler, and encoder
-# model = joblib.load("best_model.pkl")
-# scaler = joblib.load("scaler.pkl")
-# encoder = joblib.load("encoder.pkl")
-# 
-# st.set_page_config(page_title="Employee Salary Classification", page_icon="💼", layout="centered")
-# 
-# st.title("💼 Employee Salary Classification App")
-# st.markdown("Predict whether an employee earns >50K or ≤50K based on input features.")
-# 
-# # Sidebar inputs (these must match your training feature columns)
-# st.sidebar.header("Input Employee Details")
-# 
-# # ✨ Replace these fields with your dataset's actual input columns
-# age = st.sidebar.slider("Age", 17, 75, 30)
-# workclass = st.sidebar.selectbox("Work Class", ['Private', 'Self-emp-not-inc', 'Local-gov', 'Others', 'State-gov', 'Self-emp-inc', 'Federal-gov'])
-# fnlwgt = st.sidebar.number_input("Final Weight", min_value=0, value=200000)
-# educational_num = st.sidebar.slider("Educational Number", 5, 16, 10)
-# marital_status = st.sidebar.selectbox("Marital Status", ['Never-married', 'Married-civ-spouse', 'Local-gov', 'Divorced', 'Widowed', 'Separated', 'Married-AF-spouse'])
-# occupation = st.sidebar.selectbox("Job Role", [
-#     "Tech-support", "Craft-repair", "Other-service", "Sales",
-#     "Exec-managerial", "Prof-specialty", "Handlers-cleaners", "Machine-op-inspct",
-#     "Adm-clerical", "Farming-fishing", "Transport-moving", "Priv-house-serv",
-#     "Protective-serv", "Armed-Forces", "Others"
-# ])
-# relationship = st.sidebar.selectbox("Relationship", ['Own-child', 'Husband', 'Not-in-family', 'Unmarried', 'Wife', 'Other-relative'])
-# race = st.sidebar.selectbox("Race", ['Black', 'White', 'Asian-Pac-Islander', 'Amer-Indian-Eskimo', 'Other'])
-# gender = st.sidebar.selectbox("Gender", ['Male', 'Female'])
-# capital_gain = st.sidebar.number_input("Capital Gain", min_value=0, value=0)
-# capital_loss = st.sidebar.number_input("Capital Loss", min_value=0, value=0)
-# hours_per_week = st.sidebar.slider("Hours per week", 1, 100, 40)
-# native_country = st.sidebar.selectbox("Native Country", ['United-States', 'Mexico', 'Philippines', 'Germany', 'Puerto-Rico', 'Canada', 'El-Salvador', 'India', 'Cuba', 'England', 'Jamaica', 'South', 'China', 'Italy', 'Dominican-Republic', 'Vietnam', 'Guatemala', 'Columbia', 'Poland', 'Japan', 'Haiti', 'Portugal', 'Taiwan', 'Iran', 'Nicaragua', 'Greece', 'Peru', 'Ecuador', 'France', 'Ireland', 'Hong', 'Trinadad&Tobago', 'Cambodia', 'Laos', 'Thailand', 'Yugoslavia', 'Outlying-US(Guam-USVI-etc)', 'Honduras', 'Hungary', 'Scotland', 'Holand-Netherlands'])
-# 
-# 
-# # Build input DataFrame (⚠️ must match preprocessing of your training data)
-# input_df = pd.DataFrame({
-#     'age': [age],
-#     'workclass': [workclass],
-#     'fnlwgt': [fnlwgt],
-#     'educational-num': [educational_num],
-#     'marital-status': [marital_status],
-#     'occupation': [occupation],
-#     'relationship': [relationship],
-#     'race': [race],
-#     'gender': [gender],
-#     'capital-gain': [capital_gain],
-#     'capital-loss': [capital_loss],
-#     'hours-per-week': [hours_per-week],
-#     'native-country': [native_country]
-# })
-# 
-# # Preprocess input data
-# for col in ['workclass', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country']:
-#     input_df[col] = encoder.transform(input_df[col])
-# 
-# input_df_scaled = scaler.transform(input_df)
-# 
-# 
-# st.write("### 🔎 Input Data")
-# st.write(input_df)
-# 
-# # Predict button
-# if st.button("Predict Salary Class"):
-#     prediction = model.predict(input_df_scaled)
-#     st.success(f"✅ Prediction: {prediction[0]}")
-# 
-# # Batch prediction
-# st.markdown("---")
-# st.markdown("#### 📂 Batch Prediction")
-# uploaded_file = st.file_uploader("Upload a CSV file for batch prediction", type="csv")
-# 
-# if uploaded_file is not None:
-#     batch_data = pd.read_csv(uploaded_file)
-#     st.write("Uploaded data preview:", batch_data.head())
-# 
-#     # Preprocess batch data
-#     for col in ['workclass', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country']:
-#         batch_data[col] = encoder.transform(batch_data[col])
-# 
-#     batch_data_scaled = scaler.transform(batch_data)
-# 
-#     batch_preds = model.predict(batch_data_scaled)
-#     batch_data['PredictedClass'] = batch_preds
-#     st.write("✅ Predictions:")
-#     st.write(batch_data.head())
-#     csv = batch_data.to_csv(index=False).encode('utf-8')
-#     st.download_button("Download Predictions CSV", csv, file_name='predicted_classes.csv', mime='text/csv')
-
-import joblib
-joblib.dump(model, 'salary_model.pkl')
-
-import joblib
-
-# Get best model
-best_model_name = max(results, key=results.get)
-best_model = models[best_model_name]
-print(f"\n✅ Best model: {best_model_name} with accuracy {results[best_model_name]:.4f}")
-
-# Save the best model, scaler, and encoder
+# --- Saving Artifacts ---
+# IMPORTANT: These files MUST be saved before your Streamlit app tries to load them.
+# Ensure you run this cell in your Jupyter/Colab notebook to save the .pkl files.
 joblib.dump(best_model, "best_model.pkl")
 joblib.dump(scaler, 'scaler.pkl')
-joblib.dump(encoder, 'encoder.pkl')
+joblib.dump(label_encoders, 'label_encoders.pkl') # Save the dictionary of encoders
 
-print("✅ Saved best model as best_model.pkl")
+print("\n✅ Saved best model as best_model.pkl")
 print("✅ Saved scaler as scaler.pkl")
-print("✅ Saved encoder as encoder.pkl")
+print("✅ Saved label_encoders as label_encoders.pkl")
+
+# --- Streamlit App Content (This will be written to app.py) ---
+# %%writefile app.py
+import streamlit as st
+import pandas as pd
+import joblib
+
+# Load the trained model, scaler, and encoder
+try:
+    model = joblib.load("best_model.pkl")
+    scaler = joblib.load("scaler.pkl")
+    # Load encoders as a dictionary
+    label_encoders = joblib.load("label_encoders.pkl")
+except FileNotFoundError:
+    st.error("Error: Model, scaler, or encoder files not found. Please ensure 'best_model.pkl', 'scaler.pkl', and 'label_encoders.pkl' are in the same directory as this app.")
+    st.stop() # Stop the app if files are missing
+
+st.set_page_config(page_title="Employee Salary Classification", page_icon="💼", layout="centered")
+
+st.title("💼 Employee Salary Classification App")
+st.markdown("Predict whether an employee earns >50K or ≤50K based on input features.")
+
+# Sidebar inputs (these must match your training feature columns)
+st.sidebar.header("Input Employee Details")
+
+# ✨ Replace these fields with your dataset's actual input columns
+age = st.sidebar.slider("Age", 17, 75, 30)
+workclass = st.sidebar.selectbox("Work Class", ['Private', 'Self-emp-not-inc', 'Local-gov', 'Others', 'State-gov', 'Self-emp-inc', 'Federal-gov'])
+fnlwgt = st.sidebar.number_input("Final Weight", min_value=0, value=200000)
+educational_num = st.sidebar.slider("Educational Number", 5, 16, 10)
+marital_status = st.sidebar.selectbox("Marital Status", ['Never-married', 'Married-civ-spouse', 'Local-gov', 'Divorced', 'Widowed', 'Separated', 'Married-AF-spouse'])
+occupation = st.sidebar.selectbox("Job Role", [
+    "Tech-support", "Craft-repair", "Other-service", "Sales",
+    "Exec-managerial", "Prof-specialty", "Handlers-cleaners", "Machine-op-inspct",
+    "Adm-clerical", "Farming-fishing", "Transport-moving", "Priv-house-serv",
+    "Protective-serv", "Armed-Forces", "Others"
+])
+relationship = st.sidebar.selectbox("Relationship", ['Own-child', 'Husband', 'Not-in-family', 'Unmarried', 'Wife', 'Other-relative'])
+race = st.sidebar.selectbox("Race", ['Black', 'White', 'Asian-Pac-Islander', 'Amer-Indian-Eskimo', 'Other'])
+gender = st.sidebar.selectbox("Gender", ['Male', 'Female'])
+capital_gain = st.sidebar.number_input("Capital Gain", min_value=0, value=0)
+capital_loss = st.sidebar.number_input("Capital Loss", min_value=0, value=0)
+hours_per_week = st.sidebar.slider("Hours per week", 1, 100, 40)
+native_country = st.sidebar.selectbox("Native Country", ['United-States', 'Mexico', 'Philippines', 'Germany', 'Puerto-Rico', 'Canada', 'El-Salvador', 'India', 'Cuba', 'England', 'Jamaica', 'South', 'China', 'Italy', 'Dominican-Republic', 'Vietnam', 'Guatemala', 'Columbia', 'Poland', 'Japan', 'Haiti', 'Portugal', 'Taiwan', 'Iran', 'Nicaragua', 'Greece', 'Peru', 'Ecuador', 'France', 'Ireland', 'Hong', 'Trinadad&Tobago', 'Cambodia', 'Laos', 'Thailand', 'Yugoslavia', 'Outlying-US(Guam-USVI-etc)', 'Honduras', 'Hungary', 'Scotland', 'Holand-Netherlands'])
+
+
+# Build input DataFrame (⚠️ must match preprocessing of your training data)
+input_df = pd.DataFrame({
+    'age': [age],
+    'workclass': [workclass],
+    'fnlwgt': [fnlwgt],
+    'educational-num': [educational_num],
+    'marital-status': [marital_status],
+    'occupation': [occupation],
+    'relationship': [relationship],
+    'race': [race],
+    'gender': [gender],
+    'capital-gain': [capital_gain],
+    'capital-loss': [capital_loss],
+    'hours-per-week': [hours_per_week], # Corrected typo here from hours_per-week
+    'native-country': [native_country]
+})
+
+# Preprocess input data using the correct individual encoders
+categorical_cols_for_encoding = ['workclass', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country']
+for col in categorical_cols_for_encoding:
+    if col in label_encoders:
+        # Check if the input value is in the encoder's known classes.
+        # If not, 'transform' will raise an error. You might want to handle this
+        # by mapping unknown values to a default or raising a more user-friendly error.
+        # For simplicity, we assume valid inputs for now.
+        input_df[col] = label_encoders[col].transform(input_df[col])
+    else:
+        st.warning(f"Warning: Encoder for column '{col}' not found. This column might not be preprocessed correctly.")
+
+# Get the list of columns in the same order as 'x' (training features)
+# This is crucial for the scaler and model to work correctly.
+# Assuming 'x' (from the training part) is available, or you can hardcode the column order.
+# For robustness, it's best to save the column order from training.
+# As 'x' is defined earlier in the notebook, we'll assume its columns are the correct order.
+# If running app.py standalone, you would need to define expected_columns.
+# For this corrected file, 'x' refers to the x generated in the training section.
+expected_columns_order = x.columns # This assumes 'x' is from your global notebook scope.
+                                   # In a production app.py, you'd hardcode this or save it.
+
+input_df_ordered = input_df[expected_columns_order]
+input_df_scaled = scaler.transform(input_df_ordered)
+
+
+st.write("### 🔎 Input Data")
+st.write(input_df) # Show the original, unscaled, unencoded input for user clarity
+
+# Predict button
+if st.button("Predict Salary Class"):
+    prediction = model.predict(input_df_scaled)
+    # Map prediction (0 or 1) back to meaningful labels
+    predicted_class = ">50K" if prediction[0] == 1 else "<=50K" # Adjust '0' and '1' based on your actual income encoding
+    st.success(f"✅ Prediction: Employee earns {predicted_class}")
+
+# Batch prediction
+st.markdown("---")
+st.markdown("#### 📂 Batch Prediction")
+uploaded_file = st.file_uploader("Upload a CSV file for batch prediction", type="csv")
+
+if uploaded_file is not None:
+    batch_data = pd.read_csv(uploaded_file)
+    st.write("Uploaded data preview:", batch_data.head())
+
+    # Ensure all columns expected by the model are present in the uploaded file
+    missing_cols = set(expected_columns_order) - set(batch_data.columns)
+    if missing_cols:
+        st.error(f"Error: Missing columns in uploaded CSV: {', '.join(missing_cols)}. Please ensure your CSV has all required input features.")
+    else:
+        # Preprocess batch data
+        for col in categorical_cols_for_encoding:
+            if col in label_encoders:
+                # Handle potential unknown categories in batch data.
+                # 'errors='ignore'' can be used with pd.Factorize or OHE, but LabelEncoder raises an error.
+                # For robust apps, consider a custom function or a more comprehensive pipeline.
+                # For simplicity here, assuming all categories in batch data are known.
+                try:
+                    batch_data[col] = label_encoders[col].transform(batch_data[col])
+                except ValueError as e:
+                    st.error(f"Error encoding column '{col}' in batch data: {e}. Ensure all categorical values in your CSV were present in the training data.")
+                    st.stop()
+            else:
+                st.warning(f"Warning: Encoder for column '{col}' not found for batch prediction. This column might not be preprocessed correctly.")
+
+        # Ensure order of columns matches training data before scaling
+        batch_data_processed = batch_data[expected_columns_order]
+        batch_data_scaled = scaler.transform(batch_data_processed)
+
+        batch_preds = model.predict(batch_data_scaled)
+        # Map predictions back to meaningful labels for batch data as well
+        batch_data['Predicted Income Class'] = batch_preds # Assign numerical predictions first
+        batch_data['Predicted Income Class'] = batch_data['Predicted Income Class'].replace({0: '<=50K', 1: '>50K'}) # Map numbers to strings
+
+        st.write("✅ Predictions:")
+        st.write(batch_data.head())
+        csv = batch_data.to_csv(index=False).encode('utf-8')
+        st.download_button("Download Predictions CSV", csv, file_name='predicted_classes.csv', mime='text/csv')
