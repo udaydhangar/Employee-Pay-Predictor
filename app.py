@@ -9,7 +9,7 @@ Original file is located at
 
 import pandas as pd
 
-data=pd.read_csv(r"/content/adult 3.csv")
+data=pd.read_csv(r"adult 3.csv")
 
 data.head(10)
 
