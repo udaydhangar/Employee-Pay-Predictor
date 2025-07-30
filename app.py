@@ -1,76 +1,62 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import accuracy_score
-import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
 
+st.set_page_config(page_title="Employee Pay Predictor", layout="wide")
 st.title("Employee Pay Predictor")
 
-# Load CSV file
-uploaded_file = st.file_uploader("Upload your dataset (CSV format)", type=["csv"])
-if uploaded_file is not None:
-    data = pd.read_csv(uploaded_file)
+st.write("Upload your dataset (CSV format) or use the default dataset.")
 
-    st.subheader("Raw Data")
-    st.write(data.head())
+uploaded_file = st.file_uploader("Drag and drop file here", type=["csv"])
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    st.success("Custom dataset uploaded successfully!")
+else:
+    # Load default dataset
+    df = pd.read_csv("adult 3.csv")  # This file must exist in the same directory
+    st.warning("Using default dataset: 'adult 3.csv'")
 
-    # Replace missing values
-    data['occupation'].replace('?', 'Others', inplace=True)
-    data['workclass'].replace('?', 'Notlisted', inplace=True)
+# Display the dataset
+st.subheader("Sample of Dataset")
+st.dataframe(df.head())
 
-    # Drop rows with specific unwanted values
-    data = data[~data['workclass'].isin(['Without-pay', 'Never-worked'])]
-    data = data[~data['education'].isin(['5th-6th', '1st-4th', 'Preschool'])]
+# Label Encoding
+le = LabelEncoder()
+for column in df.select_dtypes(include=['object']).columns:
+    df[column] = le.fit_transform(df[column])
 
-    # Drop redundant column
-    data.drop(columns=['education'], inplace=True)
+# Features and target
+X = df.drop('income', axis=1)
+y = df['income']
 
-    # Remove outliers in age
-    data = data[(data['age'] >= 17) & (data['age'] <= 75)]
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Encode categorical variables
-    categorical_cols = ['workclass', 'marital-status', 'occupation', 'relationship', 'race', 'gender']
-    encoders = {}
-    for col in categorical_cols:
-        le = LabelEncoder()
-        data[col] = le.fit_transform(data[col])
-        encoders[col] = le
+# Model training
+model = RandomForestClassifier()
+model.fit(X_train, y_train)
 
-    # Encode target variable
-    target_encoder = LabelEncoder()
-    data['income'] = target_encoder.fit_transform(data['income'])
+# UI for prediction
+st.subheader("Predict Employee Pay Category")
 
-    # Normalize features
-    x = data.drop(columns=['income'])
-    y = data['income']
-    scaler = MinMaxScaler()
-    x_scaled = scaler.fit_transform(x)
+# Input form
+form = st.form("prediction_form")
+form_cols = X.columns.tolist()
+user_input = []
 
-    # Train-test split
-    x_train, x_test, y_train, y_test = train_test_split(x_scaled, y, test_size=0.2, random_state=1, stratify=y)
+for col in form_cols:
+    col_min = int(df[col].min())
+    col_max = int(df[col].max())
+    user_val = form.slider(f"{col}", col_min, col_max, int((col_min + col_max) / 2))
+    user_input.append(user_val)
 
-    # Classifier options
-    classifier = st.selectbox("Choose a model", ["KNN", "Logistic Regression", "Neural Network"])
+submit = form.form_submit_button("Predict")
 
-    if classifier == "KNN":
-        model = KNeighborsClassifier()
-    elif classifier == "Logistic Regression":
-        model = LogisticRegression()
-    elif classifier == "Neural Network":
-        model = MLPClassifier(solver='adam', alpha=1e-5, hidden_layer_sizes=(5,2), random_state=2, max_iter=2000)
-
-    model.fit(x_train, y_train)
-    predictions = model.predict(x_test)
-    acc = accuracy_score(y_test, predictions)
-
-    st.subheader("Model Accuracy")
-    st.write(f"{classifier} Accuracy: {acc:.2f}")
-
-    # Display sample predictions
-    st.subheader("Predictions")
-    st.write(predictions[:10])
+if submit:
+    prediction = model.predict([user_input])[0]
+    label = ">50K" if prediction == 1 else "<=50K"
+    st.success(f"Predicted Salary Category: {label}")
