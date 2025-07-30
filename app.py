@@ -195,9 +195,9 @@ except FileNotFoundError:
     st.error("Error: Model, scaler, or encoder files not found. Please ensure 'best_model.pkl', 'scaler.pkl', and 'label_encoders.pkl' are in the same directory as this app.")
     st.stop() # Stop the app if files are missing
 
-st.set_page_config(page_title="Employee Salary Classification", page_icon="💼", layout="centered")
+st.set_page_config(page_title="Employee Pay Predictor", page_icon="💼", layout="centered")
 
-st.title("💼 Employee Salary Classification App")
+st.title("💼 Employee Pay Predictor App")
 st.markdown("Predict whether an employee earns >50K or ≤50K based on input features.")
 
 # Sidebar inputs (these must match your training feature columns)
